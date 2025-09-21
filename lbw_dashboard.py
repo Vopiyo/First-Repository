@@ -7,13 +7,11 @@ Original file is located at
     https://colab.research.google.com/drive/1X3hkGWLGHMGG0J3b4uQ70eqwZsnNJlna
 """
 
+import streamlit as st
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder
 import joblib
 
+# Load your pre-trained Random Forest pipeline file
 pipeline = joblib.load('rf_lbw_pipeline.pkl')
 THRESHOLD = 0.37
 
@@ -46,7 +44,7 @@ input_df = pd.DataFrame([inputs])
 if st.button('Predict Risk'):
     risk = pipeline.predict_proba(input_df)[0][1]
     st.write(f'Predicted LBW Risk: {risk:.3f}')
-
+    
     if risk >= THRESHOLD:
         st.warning('High risk of Low Birth Weight detected.')
         st.info('Recommended Interventions:')
