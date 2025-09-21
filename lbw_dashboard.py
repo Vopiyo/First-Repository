@@ -7,8 +7,11 @@ Original file is located at
     https://colab.research.google.com/drive/1X3hkGWLGHMGG0J3b4uQ70eqwZsnNJlna
 """
 
-import streamlit as st
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
 import joblib
 
 pipeline = joblib.load('rf_lbw_pipeline.pkl')
