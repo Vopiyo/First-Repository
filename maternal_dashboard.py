@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 # Set page configuration
 st.set_page_config(
@@ -27,15 +28,54 @@ st.set_page_config(
 # Load data
 @st.cache_data
 def load_data():
-    df = pd.read_csv('data6.csv')
-
+    # Try different possible file paths for Streamlit Sharing
+    possible_paths = [
+        'data6.csv',
+        './data6.csv',
+        'data/data6.csv',
+        './data/data6.csv'
+    ]
+    
+    df = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            try:
+                df = pd.read_csv(path)
+                st.sidebar.success(f"Data loaded from {path}")
+                break
+            except:
+                continue
+    
+    if df is None:
+        # If no file found, use sample data
+        st.sidebar.warning("Using sample data as data6.csv was not found")
+        # Create sample data for demonstration
+        np.random.seed(42)
+        n_samples = 1000
+        
+        sample_data = {
+            'Residence': np.random.choice(['Urban', 'Rural'], n_samples),
+            'Educational_attainment': np.random.choice(['No education', 'Primary', 'Secondary', 'Higher'], n_samples),
+            'Smokes_cigarettes': np.random.choice(['Yes', 'No'], n_samples),
+            'Mother_weight': np.random.normal(60, 10, n_samples),
+            'Mother_height': np.random.normal(160, 8, n_samples),
+            'Mother_Age': np.random.randint(18, 45, n_samples),
+            'ANC_Visits': np.random.randint(0, 15, n_samples),
+            'Wealth_index': np.random.choice(['Poorest', 'Poorer', 'Middle', 'Richer', 'Richest'], n_samples),
+            'Delivery_Place': np.random.choice(['Home', 'Health facility', 'Other'], n_samples),
+            'Birth_CS': np.random.choice(['Yes', 'No'], n_samples),
+            'target': np.random.choice([0, 1], n_samples, p=[0.85, 0.15])
+        }
+        
+        df = pd.DataFrame(sample_data)
+    
     # Data cleaning and preprocessing
     # Replace placeholder values with NaN
     df.replace([999, 1000, '999', '1000'], np.nan, inplace=True)
-
+    
     # Convert categorical variables to proper categories
     categorical_cols = [
-        'Residence', 'Educational_attainment', 'Smokes_cigarettes',
+        'Residence', 'Educational_attainment', 'Smokes_cigarettes', 
         'Medical_Permission', 'Medical_Money', 'Hospital_Distance',
         'Currently_Working', 'Occupation', 'Wealth_index',
         'Worked_Last_12months', 'Employment_type', 'Expenditure_DecisionMaker',
@@ -43,15 +83,17 @@ def load_data():
         'Maternal_Dewormer', 'Has_HealthCard', 'Pregnancy_Wanted',
         'Birth_CS', 'BW_recall', 'target'
     ]
-
+    
+    # Only process columns that exist in the dataframe
+    categorical_cols = [col for col in categorical_cols if col in df.columns]
+    
     for col in categorical_cols:
-        if col in df.columns:
-            df[col] = df[col].astype('category')
-
+        df[col] = df[col].astype('category')
+    
     # Convert target to binary (if it's not already)
     if 'target' in df.columns:
         df['target'] = df['target'].astype(int)
-
+    
     return df
 
 df = load_data()
@@ -60,25 +102,34 @@ df = load_data()
 st.sidebar.title("Filters")
 st.sidebar.markdown("Use these filters to explore the data:")
 
-# Residence filter
-residence_options = ['All'] + list(df['Residence'].unique())
-selected_residence = st.sidebar.selectbox('Residence', residence_options)
+# Residence filter (if column exists)
+if 'Residence' in df.columns:
+    residence_options = ['All'] + list(df['Residence'].unique())
+    selected_residence = st.sidebar.selectbox('Residence', residence_options)
+else:
+    selected_residence = 'All'
 
-# Education filter
-education_options = ['All'] + list(df['Educational_attainment'].unique())
-selected_education = st.sidebar.selectbox('Educational Attainment', education_options)
+# Education filter (if column exists)
+if 'Educational_attainment' in df.columns:
+    education_options = ['All'] + list(df['Educational_attainment'].unique())
+    selected_education = st.sidebar.selectbox('Educational Attainment', education_options)
+else:
+    selected_education = 'All'
 
-# Wealth index filter
-wealth_options = ['All'] + list(df['Wealth_index'].unique())
-selected_wealth = st.sidebar.selectbox('Wealth Index', wealth_options)
+# Wealth index filter (if column exists)
+if 'Wealth_index' in df.columns:
+    wealth_options = ['All'] + list(df['Wealth_index'].unique())
+    selected_wealth = st.sidebar.selectbox('Wealth Index', wealth_options)
+else:
+    selected_wealth = 'All'
 
 # Apply filters
 filtered_df = df.copy()
-if selected_residence != 'All':
+if selected_residence != 'All' and 'Residence' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Residence'] == selected_residence]
-if selected_education != 'All':
+if selected_education != 'All' and 'Educational_attainment' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Educational_attainment'] == selected_education]
-if selected_wealth != 'All':
+if selected_wealth != 'All' and 'Wealth_index' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Wealth_index'] == selected_wealth]
 
 # Main content
@@ -90,165 +141,227 @@ col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.metric("Total Records", len(filtered_df))
+    
 with col2:
-    low_bw_percentage = (filtered_df['target'].mean() * 100) if 'target' in filtered_df.columns else 0
-    st.metric("Low Birth Weight %", f"{low_bw_percentage:.1f}%")
+    if 'target' in filtered_df.columns:
+        low_bw_percentage = (filtered_df['target'].mean() * 100)
+        st.metric("Low Birth Weight %", f"{low_bw_percentage:.1f}%")
+    else:
+        st.metric("Low Birth Weight %", "N/A")
+
 with col3:
-    avg_age = filtered_df['Mother_Age'].mean()
-    st.metric("Average Mother Age", f"{avg_age:.1f} years")
+    if 'Mother_Age' in filtered_df.columns:
+        avg_age = filtered_df['Mother_Age'].mean()
+        st.metric("Average Mother Age", f"{avg_age:.1f} years")
+    else:
+        st.metric("Average Mother Age", "N/A")
+
 with col4:
-    avg_anc = filtered_df['ANC_Visits'].mean()
-    st.metric("Average ANC Visits", f"{avg_anc:.1f}")
+    if 'ANC_Visits' in filtered_df.columns:
+        avg_anc = filtered_df['ANC_Visits'].mean()
+        st.metric("Average ANC Visits", f"{avg_anc:.1f}")
+    else:
+        st.metric("Average ANC Visits", "N/A")
 
 # Tabs for different visualizations
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Demographics",
-    "Health Indicators",
-    "Pregnancy & Birth",
-    "Correlations",
+    "Demographics", 
+    "Health Indicators", 
+    "Pregnancy & Birth", 
+    "Correlations", 
     "Raw Data"
 ])
 
 with tab1:
     st.header("Demographic Characteristics")
-
+    
     col1, col2 = st.columns(2)
-
+    
     with col1:
         # Education distribution
-        fig_edu = px.pie(
-            filtered_df,
-            names='Educational_attainment',
-            title='Educational Attainment Distribution'
-        )
-        st.plotly_chart(fig_edu, use_container_width=True)
-
+        if 'Educational_attainment' in filtered_df.columns:
+            fig_edu = px.pie(
+                filtered_df, 
+                names='Educational_attainment', 
+                title='Educational Attainment Distribution'
+            )
+            st.plotly_chart(fig_edu, use_container_width=True)
+        else:
+            st.info("Educational attainment data not available")
+        
     with col2:
         # Residence distribution
-        fig_res = px.pie(
-            filtered_df,
-            names='Residence',
-            title='Residence Distribution'
-        )
-        st.plotly_chart(fig_res, use_container_width=True)
-
+        if 'Residence' in filtered_df.columns:
+            fig_res = px.pie(
+                filtered_df, 
+                names='Residence', 
+                title='Residence Distribution'
+            )
+            st.plotly_chart(fig_res, use_container_width=True)
+        else:
+            st.info("Residence data not available")
+    
     # Wealth index distribution
-    fig_wealth = px.histogram(
-        filtered_df,
-        x='Wealth_index',
-        title='Wealth Index Distribution',
-        color='Wealth_index'
-    )
-    st.plotly_chart(fig_wealth, use_container_width=True)
+    if 'Wealth_index' in filtered_df.columns:
+        fig_wealth = px.histogram(
+            filtered_df, 
+            x='Wealth_index', 
+            title='Wealth Index Distribution',
+            color='Wealth_index'
+        )
+        st.plotly_chart(fig_wealth, use_container_width=True)
+    else:
+        st.info("Wealth index data not available")
 
 with tab2:
     st.header("Health Indicators")
-
+    
     col1, col2 = st.columns(2)
-
+    
     with col1:
-        # Mother's BMI
-        filtered_df['BMI'] = filtered_df['Mother_weight'] / ((filtered_df['Mother_height']/100) ** 2)
-        fig_bmi = px.histogram(
-            filtered_df,
-            x='BMI',
-            nbins=20,
-            title="Mother's BMI Distribution",
-            color='target'
-        )
-        st.plotly_chart(fig_bmi, use_container_width=True)
-
+        # Mother's BMI (if we have weight and height)
+        if 'Mother_weight' in filtered_df.columns and 'Mother_height' in filtered_df.columns:
+            # Filter out unrealistic values
+            valid_heights = filtered_df['Mother_height'].between(100, 250)
+            valid_weights = filtered_df['Mother_weight'].between(30, 150)
+            valid_bmi = filtered_df[valid_heights & valid_weights].copy()
+            
+            if len(valid_bmi) > 0:
+                valid_bmi['BMI'] = valid_bmi['Mother_weight'] / ((valid_bmi['Mother_height']/100) ** 2)
+                fig_bmi = px.histogram(
+                    valid_bmi, 
+                    x='BMI', 
+                    nbins=20,
+                    title="Mother's BMI Distribution",
+                    color='target' if 'target' in valid_bmi.columns else None
+                )
+                st.plotly_chart(fig_bmi, use_container_width=True)
+            else:
+                st.info("Insufficient data for BMI calculation")
+        else:
+            st.info("Height or weight data not available for BMI calculation")
+    
     with col2:
         # Smoking status
-        fig_smoke = px.pie(
-            filtered_df,
-            names='Smokes_cigarettes',
-            title='Smoking Status Distribution'
-        )
-        st.plotly_chart(fig_smoke, use_container_width=True)
-
+        if 'Smokes_cigarettes' in filtered_df.columns:
+            fig_smoke = px.pie(
+                filtered_df, 
+                names='Smokes_cigarettes', 
+                title='Smoking Status Distribution'
+            )
+            st.plotly_chart(fig_smoke, use_container_width=True)
+        else:
+            st.info("Smoking data not available")
+    
     # ANC visits by education
-    fig_anc_edu = px.box(
-        filtered_df,
-        x='Educational_attainment',
-        y='ANC_Visits',
-        title='ANC Visits by Education Level',
-        color='Educational_attainment'
-    )
-    st.plotly_chart(fig_anc_edu, use_container_width=True)
+    if 'ANC_Visits' in filtered_df.columns and 'Educational_attainment' in filtered_df.columns:
+        fig_anc_edu = px.box(
+            filtered_df,
+            x='Educational_attainment',
+            y='ANC_Visits',
+            title='ANC Visits by Education Level',
+            color='Educational_attainment'
+        )
+        st.plotly_chart(fig_anc_edu, use_container_width=True)
+    else:
+        st.info("ANC visits or education data not available")
 
 with tab3:
     st.header("Pregnancy and Birth Outcomes")
-
+    
     col1, col2 = st.columns(2)
-
+    
     with col1:
         # Birth delivery place
-        fig_delivery = px.pie(
-            filtered_df,
-            names='Delivery_Place',
-            title='Delivery Place Distribution'
-        )
-        st.plotly_chart(fig_delivery, use_container_width=True)
-
+        if 'Delivery_Place' in filtered_df.columns:
+            fig_delivery = px.pie(
+                filtered_df,
+                names='Delivery_Place',
+                title='Delivery Place Distribution'
+            )
+            st.plotly_chart(fig_delivery, use_container_width=True)
+        else:
+            st.info("Delivery place data not available")
+    
     with col2:
         # C-section rate by wealth index
-        csection_rates = filtered_df.groupby('Wealth_index')['Birth_CS'].apply(
-            lambda x: (x == 'Yes').mean() * 100
-        ).reset_index()
-        fig_cs = px.bar(
-            csection_rates,
-            x='Wealth_index',
-            y='Birth_CS',
-            title='C-Section Rate by Wealth Index (%)',
-            color='Wealth_index'
-        )
-        st.plotly_chart(fig_cs, use_container_width=True)
-
+        if 'Birth_CS' in filtered_df.columns and 'Wealth_index' in filtered_df.columns:
+            csection_rates = filtered_df.groupby('Wealth_index')['Birth_CS'].apply(
+                lambda x: (x == 'Yes').mean() * 100 if 'Yes' in x.values else 0
+            ).reset_index()
+            fig_cs = px.bar(
+                csection_rates,
+                x='Wealth_index',
+                y='Birth_CS',
+                title='C-Section Rate by Wealth Index (%)',
+                color='Wealth_index'
+            )
+            st.plotly_chart(fig_cs, use_container_width=True)
+        else:
+            st.info("C-section or wealth index data not available")
+    
     # Low birth weight by factors
-    fig_lbw_edu = px.box(
-        filtered_df,
-        x='Educational_attainment',
-        y='target',
-        title='Low Birth Weight by Education Level',
-        color='Educational_attainment'
-    )
-    st.plotly_chart(fig_lbw_edu, use_container_width=True)
+    if 'target' in filtered_df.columns and 'Educational_attainment' in filtered_df.columns:
+        fig_lbw_edu = px.box(
+            filtered_df,
+            x='Educational_attainment',
+            y='target',
+            title='Low Birth Weight by Education Level',
+            color='Educational_attainment'
+        )
+        st.plotly_chart(fig_lbw_edu, use_container_width=True)
+    else:
+        st.info("Birth weight or education data not available")
 
 with tab4:
     st.header("Correlation Analysis")
-
+    
     # Select numerical columns for correlation
     numerical_cols = ['Mother_weight', 'Mother_height', 'Mother_Age', 'ANC_Visits', 'Days_Tablets_taken']
     numerical_cols = [col for col in numerical_cols if col in filtered_df.columns]
-
-    if numerical_cols:
-        corr_matrix = filtered_df[numerical_cols].corr()
-
-        fig_corr = px.imshow(
-            corr_matrix,
-            title='Correlation Matrix of Numerical Variables',
-            aspect='auto',
-            color_continuous_scale='RdBu_r'
-        )
-        st.plotly_chart(fig_corr, use_container_width=True)
-
+    
+    if len(numerical_cols) > 0:
+        # Filter out any rows with missing values in these columns
+        corr_data = filtered_df[numerical_cols].dropna()
+        
+        if len(corr_data) > 0:
+            corr_matrix = corr_data.crrop()
+            
+            fig_corr = px.imshow(
+                corr_matrix,
+                title='Correlation Matrix of Numerical Variables',
+                aspect='auto',
+                color_continuous_scale='RdBu_r'
+            )
+            st.plotly_chart(fig_corr, use_container_width=True)
+        else:
+            st.info("Insufficient data for correlation analysis")
+    else:
+        st.info("No numerical data available for correlation analysis")
+    
     # Scatter plot: Mother's age vs ANC visits colored by target
-    if 'Mother_Age' in filtered_df.columns and 'ANC_Visits' in filtered_df.columns:
-        fig_scatter = px.scatter(
-            filtered_df,
-            x='Mother_Age',
-            y='ANC_Visits',
-            color='target',
-            title='Mother Age vs ANC Visits (Colored by Birth Weight Outcome)',
-            hover_data=['Educational_attainment', 'Wealth_index']
-        )
-        st.plotly_chart(fig_scatter, use_container_width=True)
+    if 'Mother_Age' in filtered_df.columns and 'ANC_Visits' in filtered_df.columns and 'target' in filtered_df.columns:
+        scatter_data = filtered_df[['Mother_Age', 'ANC_Visits', 'target', 'Educational_attainment', 'Wealth_index']].dropna()
+        
+        if len(scatter_data) > 0:
+            fig_scatter = px.scatter(
+                scatter_data,
+                x='Mother_Age',
+                y='ANC_Visits',
+                color='target',
+                title='Mother Age vs ANC Visits (Colored by Birth Weight Outcome)',
+                hover_data=['Educational_attainment', 'Wealth_index']
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
+        else:
+            st.info("Insufficient data for scatter plot")
+    else:
+        st.info("Required data for scatter plot not available")
 
 with tab5:
     st.header("Raw Data")
     st.dataframe(filtered_df)
-
+    
     # Download button
     csv = filtered_df.to_csv(index=False)
     st.download_button(
